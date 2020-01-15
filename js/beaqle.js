@@ -283,6 +283,7 @@
     }
 
 
+
 // ###################################################################
 // some helper functions
 
@@ -392,9 +393,9 @@ $.extend({ alert: function (message, title) {
 }
 });
 
+
 // ###################################################################
 // Listening test main object
-
 
     // ###################################################################
     // constructor and initialization
@@ -1021,6 +1022,7 @@ $.extend({ alert: function (message, title) {
         return featStr;
     }
 
+
 // ###################################################################
 // MUSHRA test main object
 
@@ -1287,6 +1289,8 @@ MushraTest.prototype.formatResults = function () {
    
     return resultstring;
 }
+
+
 
 // ###################################################################
 // MOS test main object
@@ -2114,6 +2118,221 @@ RelativePrefTest.prototype.saveRatings = function (TestIdx) {
 }
 
 RelativePrefTest.prototype.formatResults = function () {
+
+    var resultstring = "";
+    var tab = document.createElement('table');
+    var head = tab.createTHead();
+    var row = head.insertRow(-1);
+    var cell = row.insertCell(-1); cell.innerHTML = "Test Name and ID";
+    cell = row.insertCell(-1);     cell.innerHTML = "presented order";
+    cell = row.insertCell(-1);     cell.innerHTML = "time in ms";
+    cell = row.insertCell(-1);     cell.innerHTML = "chosen preference";
+
+    var numCorrect = 0;
+    var numWrong   = 0;
+
+    // evaluate single tests
+    for (var i = 0; i < this.TestConfig.Testsets.length; i++) {
+        this.TestState.EvalResults[i] = new Object();
+        this.TestState.EvalResults[i].TestID = this.TestConfig.Testsets[i].TestID;
+        if (this.TestState.TestSequence.indexOf(i)>=0) {
+            row  = tab.insertRow(-1);
+            cell = row.insertCell(-1);
+            cell.innerHTML = this.TestConfig.Testsets[i].Name + "("+this.TestConfig.Testsets[i].TestID+")";
+            cell = row.insertCell(-1);
+
+            this.TestState.EvalResults[i].PresentationOrder = "A=" + this.TestState.FileMappings[i].A + ", B=" + this.TestState.FileMappings[i].B;
+            cell.innerHTML = this.TestState.EvalResults[i].PresentationOrder;
+            cell = row.insertCell(-1);
+            this.TestState.EvalResults[i].Runtime   = this.TestState.Runtime[i];
+            cell.innerHTML = this.TestState.EvalResults[i].Runtime;
+            cell = row.insertCell(-1);
+            this.TestState.EvalResults[i].Preference = this.TestState.Ratings[i];
+            cell.innerHTML = this.TestState.EvalResults[i].Preference;
+
+            // resultstring += "<p><b>"+this.TestConfig.Testsets[i].Name + "</b> ("+this.TestConfig.Testsets[i].TestID+"), Runtime:" + this.TestState.Runtime[i]/1000 + "sec </p>\n";
+        }
+    }
+
+    resultstring += tab.outerHTML + "\n";
+    return resultstring;
+}
+
+
+
+// ###################################################################
+// Same/Different test main object (modelled after RelativePref-Test)
+
+// inherit from ListeningTest
+function SameDifferentTest(TestData) {
+    ListeningTest.apply(this, arguments);
+}
+SameDifferentTest.prototype = new ListeningTest();
+SameDifferentTest.prototype.constructor = PrefTest;
+
+// create random mapping to test files
+SameDifferentTest.prototype.createFileMapping = function (TestIdx) {
+    var NumFiles = $.map(this.TestConfig.Testsets[TestIdx].Files, function(n, i) { return i; }).length;
+    if (NumFiles !== 2) alert('Too many files for preference test');
+    var fileMapping = new Array(NumFiles);
+
+    var choices = ["A", "B"];
+    $.each(this.TestConfig.Testsets[TestIdx].Files, function(index, value) {
+
+        do {
+            var RandNumber = Math.floor(Math.random() * choices.length);
+            if (RandNumber>NumFiles-1) RandNumber = NumFiles - 1;
+
+            var RandFileName = choices[RandNumber];
+        } while (typeof fileMapping[RandFileName] !== 'undefined');
+
+        if (RandFileName<0) alert(fileMapping);
+        fileMapping[RandFileName] = index;
+    });
+
+    this.TestState.FileMappings[TestIdx] = fileMapping;
+}
+
+
+// implement specific code
+SameDifferentTest.prototype.createTestDOM = function (TestIdx) {
+
+        // clear old test table
+        if ($('#TableContainer > div#TableDiv')) {
+            $('#TableContainer > div#TableDiv').remove();
+        }
+
+        // create new test table
+        var div = document.createElement('div');
+        div.setAttribute('id', 'TableDiv')
+
+        var instructions = div.appendChild(document.createElement('span'));
+        instructions.innerHTML = this.TestConfig.RatingText;
+
+        div.appendChild(document.createElement('hr'));
+
+        var tab = div.appendChild(document.createElement('table'));
+        tab.setAttribute('id','TestTable');
+
+        var fileID = "";
+        var row = new Array();
+        var cell = new Array();
+
+        // create random file mapping if not yet done
+        if (!this.TestState.FileMappings[TestIdx]) {
+                this.createFileMapping(TestIdx);
+        }
+
+        if (!this.TestState.WasListenedTo[TestIdx]) {
+            // The order in which we add to this object indicates the order given in the alert.
+            this.TestState.WasListenedTo[TestIdx] = new Object();
+
+            var fileID_A = this.TestState.FileMappings[TestIdx].A;
+            this.TestState.WasListenedTo[TestIdx][fileID_A] = false;
+
+            var fileID_B = this.TestState.FileMappings[TestIdx].B;
+            this.TestState.WasListenedTo[TestIdx][fileID_B] = false;
+        }
+
+        row[0]  = tab.insertRow(-1);
+
+        fileID = this.TestState.FileMappings[TestIdx].A;
+        var fileIDstr = "A";
+        if (this.TestConfig.ShowFileIDs) {
+            fileIDstr = fileID;
+        }
+        cell[0] = row[0].insertCell(-1);
+        cell[0].innerHTML = '<button id="play'+fileID+'Btn" class="playButton" rel="'+fileID+'">Play '+fileIDstr+'</button>';
+        this.addAudio(TestIdx, fileID, fileID);
+
+        fileID = this.TestState.FileMappings[TestIdx].B;
+        fileIDstr = "B";
+        if (this.TestConfig.ShowFileIDs) {
+            fileIDstr = fileID;
+        }
+        cell[1] = row[0].insertCell(-1);
+        cell[1].innerHTML = '<button id="play'+fileID+'Btn" class="playButton" rel="'+fileID+'">Play '+fileIDstr+'</button>';
+        this.addAudio(TestIdx, fileID, fileID);
+
+        // cell[3] = row[0].insertCell(-1);
+        // cell[3].innerHTML = "<button class='stopButton'>Stop</button>";
+
+        // cell[4] = row[0].insertCell(-1);
+        // cell[4].innerHTML = "Press buttons to start/stop playback.";
+
+        row = tab.insertRow(-1);
+        row.setAttribute("height","5");
+
+        row[1]  = tab.insertRow(-1);
+        cell[0] = row[1].insertCell(-1);
+        cell[0].innerHTML = "<input type='radio' name='ItemSelection' id='same'/>";
+
+        cell[1] = row[1].insertCell(-1);
+        cell[1].innerHTML = "<input type='radio' name='ItemSelection' id='different'/>";
+
+        row[2]  = tab.insertRow(-1);
+        cell[0] = row[2].insertCell(-1);
+        cell[0].innerHTML = "Same";
+        cell[1] = row[2].insertCell(-1);
+        cell[1].innerHTML = "Different";
+
+        // add spacing
+        row = tab.insertRow(-1);
+        row.setAttribute("height","5");
+
+        // append the created table to the DOM
+        $('#TableContainer').append(div);
+}
+
+SameDifferentTest.prototype.readRatings = function (TestIdx) {
+
+    if (this.TestState.Ratings[TestIdx] === 'same') {
+        $("#same").prop("checked", true);
+    } else if (this.TestState.Ratings[TestIdx] === 'different') {
+        $("#different").prop("checked", true);
+    }
+}
+
+SameDifferentTest.prototype.saveRatings = function (TestIdx) {
+
+    // stops the user proceeding if they have not listened to all sentences
+    var fileID_A = this.TestState.FileMappings[TestIdx].A;
+    var fileID_B = this.TestState.FileMappings[TestIdx].B;
+    if (this.TestState.WasListenedTo[TestIdx][fileID_A] === false || this.TestState.WasListenedTo[TestIdx][fileID_B] === false) {
+        var Missing = new Array();
+
+        if (this.TestState.WasListenedTo[TestIdx][fileID_A] === false) {
+            var fileIDstr = "A";
+            if (this.TestConfig.ShowFileIDs) {
+                fileIDstr = fileID_A;
+            }
+            Missing.push("- " + fileIDstr);
+        }
+        if (this.TestState.WasListenedTo[TestIdx][fileID_B] === false) {
+            var fileIDstr = "B";
+            if (this.TestConfig.ShowFileIDs) {
+                fileIDstr = fileID_B;
+            }
+            Missing.push("- " + fileIDstr);
+        }
+
+        $.alert("Please complete this task before moving on.<br><br>Clips that have not been fully listened to:<br>" + Missing.join('<br>'), "Warning!");
+        return false;
+    }
+
+    if (this.TestConfig.RequirePreference == true && !$("input[type='radio']:checked").val()) {
+        $.alert("You must select a choice!", "Warning!")
+        return false;
+    }
+
+    if ($("#same").prop("checked")) {
+        this.TestState.Ratings[TestIdx] = 'same';
+    } else if ($("#different").prop("checked")) {
+        this.TestState.Ratings[TestIdx] = 'different';
+    }
+}
+
+SameDifferentTest.prototype.formatResults = function () {
 
     var resultstring = "";
     var tab = document.createElement('table');
